@@ -82,7 +82,5 @@ You should be able to see the application running at http://localhost:3000.
 
 If you like this project, please leave a star ⭐️. This helps more people to know this project.
 
----
-> GitHub [@jeffreythecoder](https://github.com/JeffreytheCoder/JeffreytheCoder) &nbsp;&middot;&nbsp;
-> Twitter [@jeffreyzepengyu](https://twitter.com/jeffreyzepengyu)
+
 
