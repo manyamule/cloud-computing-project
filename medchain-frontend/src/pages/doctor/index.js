@@ -1,222 +1,260 @@
 // src/pages/doctor/index.js
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Container,
   Typography,
   Box,
   TextField,
   Button,
-  Divider,
   Paper,
-  CircularProgress,
-  Alert
+  Grid,
+  Tab,
+  Tabs,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
+  CircularProgress
 } from '@mui/material';
-import SearchIcon from '@mui/icons-material/Search';
-import PersonAddIcon from '@mui/icons-material/PersonAdd';
-import NoteAddIcon from '@mui/icons-material/NoteAdd';
 import { useWeb3 } from '../../contexts/Web3Context';
 import { useAlert } from '../../contexts/AlertContext';
-import RecordItem from '../../components/records/RecordItem';
-import Loading from '../../components/common/Loading';
 import AddRecordModal from './AddRecordModal';
+import RecordItem from '../../components/RecordItem';
 
 const DoctorPage = () => {
-  const { accounts, role, loading, patientExists, getPatientRecords, registerPatient } = useWeb3();
+  const { accounts, contract, getDoctorPatients, patientExists, getPatientRecords, registerPatient } = useWeb3();
   const { success, error } = useAlert();
   
-  // State variables
+  // State
+  const [patients, setPatients] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [searchAddress, setSearchAddress] = useState('');
   const [registerAddress, setRegisterAddress] = useState('');
-  const [currentPatient, setCurrentPatient] = useState(null);
+  const [selectedPatient, setSelectedPatient] = useState(null);
   const [records, setRecords] = useState([]);
-  const [loadingRecords, setLoadingRecords] = useState(false);
-  const [showAddRecord, setShowAddRecord] = useState(false);
+  const [openAddRecord, setOpenAddRecord] = useState(false);
   
-  // Validate Ethereum address
-  const isValidAddress = (address) => {
-    return /^0x[a-fA-F0-9]{40}$/.test(address);
-  };
+  // Load doctor's patients
+  useEffect(() => {
+    const loadPatients = async () => {
+      try {
+        if (accounts && accounts[0] && contract) {
+          const patientAddresses = await getDoctorPatients();
+          setPatients(patientAddresses);
+        }
+      } catch (err) {
+        console.error(err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    
+    loadPatients();
+  }, [accounts, contract, getDoctorPatients]);
   
   // Handle patient search
-  const handleSearchPatient = async () => {
-    if (!isValidAddress(searchAddress)) {
-      error('Please enter a valid Ethereum address');
-      return;
-    }
-    
-    setLoadingRecords(true);
-    
+  const handleSearch = async () => {
     try {
+      if (!searchAddress) {
+        error('Please enter a patient address');
+        return;
+      }
+      
+      setLoading(true);
       const exists = await patientExists(searchAddress);
       
       if (exists) {
         const patientRecords = await getPatientRecords(searchAddress);
-        setCurrentPatient(searchAddress);
+        setSelectedPatient(searchAddress);
         setRecords(patientRecords);
         success('Patient found');
       } else {
-        setCurrentPatient(null);
-        setRecords([]);
         error('Patient not found');
       }
     } catch (err) {
       error(err.message || 'Error searching for patient');
     } finally {
-      setLoadingRecords(false);
+      setLoading(false);
     }
   };
   
   // Handle patient registration
-  const handleRegisterPatient = async () => {
-    if (!isValidAddress(registerAddress)) {
-      error('Please enter a valid Ethereum address');
-      return;
-    }
-    
+  const handleRegister = async () => {
     try {
+      if (!registerAddress) {
+        error('Please enter a patient address');
+        return;
+      }
+      
       await registerPatient(registerAddress);
       success('Patient registered successfully');
       setRegisterAddress('');
+      
+      // Refresh patient list
+      const patientAddresses = await getDoctorPatients();
+      setPatients(patientAddresses);
     } catch (err) {
       error(err.message || 'Error registering patient');
     }
   };
   
-  // After a record is added, refresh the records list
+  // Handle record added
   const handleRecordAdded = async () => {
-    if (currentPatient) {
-      setLoadingRecords(true);
-      try {
-        const patientRecords = await getPatientRecords(currentPatient);
+    try {
+      if (selectedPatient) {
+        const patientRecords = await getPatientRecords(selectedPatient);
         setRecords(patientRecords);
-      } catch (err) {
-        error('Failed to refresh records');
-      } finally {
-        setLoadingRecords(false);
+        success('Record added successfully');
       }
+    } catch (err) {
+      error(err.message || 'Error refreshing records');
     }
   };
-
-  // If loading blockchain data
+  
   if (loading) {
-    return <Loading message="Connecting to blockchain..." />;
-  }
-  
-  // If no wallet connected or wrong role
-  if (!accounts || accounts.length === 0) {
     return (
-      <Container maxWidth="md" sx={{ py: 4 }}>
-        <Alert severity="warning">
-          Please connect your MetaMask wallet to continue.
-        </Alert>
-      </Container>
+      <Box display="flex" justifyContent="center" alignItems="center" minHeight="80vh">
+        <CircularProgress />
+      </Box>
     );
   }
   
-  if (role !== 'doctor') {
-    return (
-      <Container maxWidth="md" sx={{ py: 4 }}>
-        <Alert severity="error">
-          Only doctors can access this page. Please register as a doctor first.
-        </Alert>
-      </Container>
-    );
-  }
-
   return (
-    <Container maxWidth="md" sx={{ py: 4 }}>
-      {/* Patient Search Section */}
-      <Paper elevation={2} sx={{ p: 3, mb: 4 }}>
-        <Typography variant="h5" gutterBottom>
-          Patient Records
-        </Typography>
-        
-        <Box display="flex" gap={2} mb={2}>
-          <TextField
-            fullWidth
-            label="Patient Address"
-            variant="outlined"
-            value={searchAddress}
-            onChange={(e) => setSearchAddress(e.target.value)}
-            placeholder="0x..."
-          />
+    <Container maxWidth="lg" sx={{ py: 4 }}>
+      <Typography variant="h4" color="primary" gutterBottom>
+        Doctor Dashboard
+      </Typography>
+      
+      <Grid container spacing={4}>
+        <Grid item xs={12} md={6}>
+          <Paper elevation={2} sx={{ p: 3, mb: 4 }}>
+            <Typography variant="h5" gutterBottom>
+              Patient Records
+            </Typography>
+            
+            <Box sx={{ display: 'flex', mb: 2 }}>
+              <TextField
+                fullWidth
+                label="Patient Address"
+                variant="outlined"
+                size="small"
+                value={searchAddress}
+                onChange={(e) => setSearchAddress(e.target.value)}
+              />
+              <Button 
+                variant="contained" 
+                color="primary" 
+                sx={{ ml: 2 }}
+                onClick={handleSearch}
+              >
+                Search
+              </Button>
+            </Box>
+            
+            {selectedPatient && (
+              <Button
+                variant="outlined"
+                color="primary"
+                onClick={() => setOpenAddRecord(true)}
+                sx={{ mb: 2 }}
+              >
+                Add New Record
+              </Button>
+            )}
+            
+            {selectedPatient && records.length > 0 ? (
+              <Box>
+                <Typography variant="h6" gutterBottom>
+                  Patient: {selectedPatient.substring(0, 6)}...{selectedPatient.substring(38)}
+                </Typography>
+                
+                {records.map((record, index) => (
+                  <RecordItem key={index} record={record} />
+                ))}
+              </Box>
+            ) : selectedPatient ? (
+              <Typography variant="body1">No records found for this patient</Typography>
+            ) : null}
+          </Paper>
           
-          <Button
-            variant="contained"
-            startIcon={<SearchIcon />}
-            onClick={handleSearchPatient}
-            disabled={!isValidAddress(searchAddress)}
-          >
-            Search
-          </Button>
-        </Box>
+          <Paper elevation={2} sx={{ p: 3 }}>
+            <Typography variant="h5" gutterBottom>
+              Register New Patient
+            </Typography>
+            
+            <Box sx={{ display: 'flex', mb: 2 }}>
+              <TextField
+                fullWidth
+                label="Patient Address"
+                variant="outlined"
+                size="small"
+                value={registerAddress}
+                onChange={(e) => setRegisterAddress(e.target.value)}
+              />
+              <Button 
+                variant="contained" 
+                color="secondary" 
+                sx={{ ml: 2 }}
+                onClick={handleRegister}
+              >
+                Register
+              </Button>
+            </Box>
+          </Paper>
+        </Grid>
         
-        {/* Add Record Button - only shown when a patient is found */}
-        {currentPatient && (
-          <Button
-            variant="outlined"
-            startIcon={<NoteAddIcon />}
-            onClick={() => setShowAddRecord(true)}
-          >
-            Add New Record
-          </Button>
-        )}
-      </Paper>
+        <Grid item xs={12} md={6}>
+          <Paper elevation={2} sx={{ p: 3 }}>
+            <Typography variant="h5" gutterBottom>
+              My Patients
+            </Typography>
+            
+            {patients.length > 0 ? (
+              <TableContainer>
+                <Table>
+                  <TableHead>
+                    <TableRow>
+                      <TableCell>Patient Address</TableCell>
+                      <TableCell>Actions</TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {patients.map((patient, index) => (
+                      <TableRow key={index}>
+                        <TableCell>
+                          {patient.substring(0, 6)}...{patient.substring(38)}
+                        </TableCell>
+                        <TableCell>
+                          <Button 
+                            variant="outlined" 
+                            size="small"
+                            onClick={() => {
+                              setSearchAddress(patient);
+                              setSelectedPatient(patient);
+                              getPatientRecords(patient).then(setRecords);
+                            }}
+                          >
+                            View
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </TableContainer>
+            ) : (
+              <Typography variant="body1">No patients found</Typography>
+            )}
+          </Paper>
+        </Grid>
+      </Grid>
       
-      {/* Records List */}
-      {loadingRecords ? (
-        <Loading message="Loading patient records..." />
-      ) : currentPatient ? (
-        <Box mb={4}>
-          <Typography variant="h6" gutterBottom>
-            Records for {currentPatient.substr(0, 6)}...{currentPatient.substr(-4)}
-          </Typography>
-          
-          {records.length === 0 ? (
-            <Alert severity="info">No records found for this patient</Alert>
-          ) : (
-            records.map((record, index) => (
-              <RecordItem key={index} record={record} />
-            ))
-          )}
-        </Box>
-      ) : null}
-      
-      <Divider sx={{ my: 4 }} />
-      
-      {/* Patient Registration Section */}
-      <Paper elevation={2} sx={{ p: 3 }}>
-        <Typography variant="h5" gutterBottom>
-          Register New Patient
-        </Typography>
-        
-        <Box display="flex" gap={2}>
-          <TextField
-            fullWidth
-            label="Patient Address"
-            variant="outlined"
-            value={registerAddress}
-            onChange={(e) => setRegisterAddress(e.target.value)}
-            placeholder="0x..."
-          />
-          
-          <Button
-            variant="contained"
-            color="secondary"
-            startIcon={<PersonAddIcon />}
-            onClick={handleRegisterPatient}
-            disabled={!isValidAddress(registerAddress)}
-          >
-            Register
-          </Button>
-        </Box>
-      </Paper>
-      
-      {/* Add Record Modal */}
       <AddRecordModal
-        open={showAddRecord}
-        onClose={() => setShowAddRecord(false)}
-        patientAddress={currentPatient}
+        open={openAddRecord}
+        onClose={() => setOpenAddRecord(false)}
+        patientAddress={selectedPatient}
         onRecordAdded={handleRecordAdded}
       />
     </Container>

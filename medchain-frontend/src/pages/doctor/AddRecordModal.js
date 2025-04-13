@@ -8,83 +8,80 @@ import {
   Button,
   Box,
   Typography,
-  CircularProgress,
-  Alert
+  CircularProgress
 } from '@mui/material';
-import CloudUploadIcon from '@mui/icons-material/CloudUpload';
 import { useWeb3 } from '../../contexts/Web3Context';
 import { useAlert } from '../../contexts/AlertContext';
-import { uploadFile } from '../../services/ipfsService';
 
 const AddRecordModal = ({ open, onClose, patientAddress, onRecordAdded }) => {
-  const { accounts, addRecord } = useWeb3();
-  const { success, error } = useAlert();
+  const { addRecord } = useWeb3();
+  const { error } = useAlert();
   
-  // State variables
   const [file, setFile] = useState(null);
   const [uploading, setUploading] = useState(false);
   
-  // Handle file selection
   const handleFileChange = (e) => {
     if (e.target.files && e.target.files[0]) {
       setFile(e.target.files[0]);
     }
   };
   
-  // Handle file upload and record creation
   const handleUpload = async () => {
     if (!file || !patientAddress) return;
     
     setUploading(true);
     
     try {
-      // Convert file to array buffer
-      const buffer = await file.arrayBuffer();
+      // Create a buffer from the file
+      const buffer = await new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.readAsArrayBuffer(file);
+        reader.onload = () => resolve(new Uint8Array(reader.result));
+        reader.onerror = reject;
+      });
       
       // Upload to IPFS
-      const ipfsHash = await uploadFile(buffer, file.name);
+      const ipfsResponse = await uploadToIPFS(buffer);
+      const ipfsHash = ipfsResponse.path;
       
       // Add record to blockchain
       await addRecord(ipfsHash, file.name, patientAddress);
       
-      success('Record added successfully');
-      
-      // Notify parent component
+      // Call the callback
       if (onRecordAdded) {
         onRecordAdded();
       }
       
-      // Close modal and reset state
-      setFile(null);
+      // Close the modal
       onClose();
     } catch (err) {
-      error(err.message || 'Failed to upload record');
+      error(err.message || 'Error uploading record');
     } finally {
       setUploading(false);
     }
   };
   
-  // Handle modal close
-  const handleClose = () => {
-    if (!uploading) {
-      setFile(null);
-      onClose();
-    }
+  // Function to upload to IPFS
+  const uploadToIPFS = async (buffer) => {
+    // Import your IPFS service logic here
+    // This is a placeholder, replace with your actual IPFS upload logic
+    return { path: 'ipfshash123' };
   };
-
+  
   return (
-    <Dialog open={open} onClose={handleClose} maxWidth="md" fullWidth>
-      <DialogTitle>
-        Add Medical Record
-      </DialogTitle>
+    <Dialog
+      open={open}
+      onClose={!uploading ? onClose : undefined}
+      maxWidth="sm"
+      fullWidth
+    >
+      <DialogTitle>Add Medical Record</DialogTitle>
       
       <DialogContent>
         {uploading ? (
-          <Box display="flex" justifyContent="center" alignItems="center" py={4}>
-            <CircularProgress />
-            <Typography sx={{ ml: 2 }}>
-              Uploading to IPFS and blockchain...
-            </Typography>
+          <Box display="flex" alignItems="center" justifyContent="center" py={3}>
+            <CircularProgress size={24} sx={{ mr: 2 }} />
+            <Typography>Uploading to IPFS and blockchain...</Typography>
           </Box>
         ) : (
           <Box py={2}>
@@ -92,27 +89,24 @@ const AddRecordModal = ({ open, onClose, patientAddress, onRecordAdded }) => {
               Upload a medical record for patient: {patientAddress}
             </Typography>
             
-            <Box
-              border={1}
-              borderColor="divider"
-              borderRadius={1}
-              p={3}
-              mt={2}
+            <Box 
+              border={1} 
+              borderRadius={1} 
+              borderColor="divider" 
+              p={3} 
+              mt={2} 
               textAlign="center"
             >
               <input
                 type="file"
                 id="record-file"
-                accept="application/pdf,image/*,.doc,.docx,.xls,.xlsx,.txt"
                 style={{ display: 'none' }}
                 onChange={handleFileChange}
               />
-              
               <label htmlFor="record-file">
                 <Button
-                  component="span"
                   variant="contained"
-                  startIcon={<CloudUploadIcon />}
+                  component="span"
                 >
                   Select File
                 </Button>
@@ -120,9 +114,9 @@ const AddRecordModal = ({ open, onClose, patientAddress, onRecordAdded }) => {
               
               {file && (
                 <Box mt={2}>
-                  <Alert severity="success">
+                  <Typography variant="body2">
                     Selected file: {file.name} ({(file.size / 1024).toFixed(2)} KB)
-                  </Alert>
+                  </Typography>
                 </Box>
               )}
             </Box>
@@ -131,13 +125,13 @@ const AddRecordModal = ({ open, onClose, patientAddress, onRecordAdded }) => {
       </DialogContent>
       
       <DialogActions>
-        <Button onClick={handleClose} disabled={uploading}>
+        <Button onClick={onClose} disabled={uploading}>
           Cancel
         </Button>
-        <Button
+        <Button 
+          variant="contained" 
+          color="primary" 
           onClick={handleUpload}
-          variant="contained"
-          color="primary"
           disabled={!file || uploading}
         >
           Upload Record

@@ -1,85 +1,46 @@
+// SPDX-License-Identifier: MIT
 pragma solidity >=0.4.22 <0.9.0;
 
-contract EHR { 
-  struct Record { 
-    string cid;
-    string fileName; 
-    address patientId;
-    address doctorId;
-    uint256 timeAdded;
-  }
+import "./EHRRecords.sol";
+import "./EHRPatientInfo.sol";
 
-  struct Patient {
-    address id;
-    Record[] records;
-  }
-
-  struct Doctor {
-    address id;
-  }
-
-  mapping (address => Patient) public patients;
-  mapping (address => Doctor) public doctors;
-
-  event PatientAdded(address patientId);
-  event DoctorAdded(address doctorId);
-  event RecordAdded(string cid, address patientId, address doctorId); 
-
-  // modifiers
-
-  modifier senderExists {
-    require(doctors[msg.sender].id == msg.sender || patients[msg.sender].id == msg.sender, "Sender does not exist");
-    _;
-  }
-
-  modifier patientExists(address patientId) {
-    require(patients[patientId].id == patientId, "Patient does not exist");
-    _;
-  }
-
-  modifier senderIsDoctor {
-    require(doctors[msg.sender].id == msg.sender, "Sender is not a doctor");
-    _;
-  }
-
-  // functions
-
-  function addPatient(address _patientId) public senderIsDoctor {
-    require(patients[_patientId].id != _patientId, "This patient already exists.");
-    patients[_patientId].id = _patientId;
-
-    emit PatientAdded(_patientId);
-  }
-
-  function addDoctor() public {
-    require(doctors[msg.sender].id != msg.sender, "This doctor already exists.");
-    doctors[msg.sender].id = msg.sender;
-
-    emit DoctorAdded(msg.sender);
-  }
-
-  function addRecord(string memory _cid, string memory _fileName, address _patientId) public senderIsDoctor patientExists(_patientId) {
-    Record memory record = Record(_cid, _fileName, _patientId, msg.sender, block.timestamp);
-    patients[_patientId].records.push(record);
-
-    emit RecordAdded(_cid, _patientId, msg.sender);
-  } 
-
-  function getRecords(address _patientId) public view senderExists patientExists(_patientId) returns (Record[] memory) {
-    return patients[_patientId].records;
-  } 
-
-  function getSenderRole() public view returns (string memory) {
-    if (doctors[msg.sender].id == msg.sender) {
-      return "doctor";
-    } else if (patients[msg.sender].id == msg.sender) {
-      return "patient";
-    } else {
-      return "unknown";
+contract EHR is EHRRecords, EHRPatientInfo {
+  // This contract inherits all functionality from EHRRecords and EHRPatientInfo
+  // which in turn inherit from EHRCore
+  
+  // Additional functionality specific to the main contract can go here
+  
+  // Get all doctors (for patient to browse)
+  function getAllDoctors() public view returns (address[] memory, string[] memory, string[] memory) {
+    // First, count active doctors
+    uint256 count = 0;
+    uint256 maxAddresses = 100; // Limit search to reduce gas costs
+    
+    for (uint i = 0; i < maxAddresses; i++) {
+      address doctorAddr = address(uint160(i));
+      if (doctors[doctorAddr].isActive) {
+        count++;
+      }
     }
+    
+    // Create arrays to return
+    address[] memory addresses = new address[](count);
+    string[] memory names = new string[](count);
+    string[] memory specializations = new string[](count);
+    
+    // Fill arrays
+    uint256 index = 0;
+    for (uint i = 0; i < maxAddresses; i++) {
+      address doctorAddr = address(uint160(i));
+      if (doctors[doctorAddr].isActive) {
+        addresses[index] = doctorAddr;
+        names[index] = doctors[doctorAddr].name;
+        specializations[index] = doctors[doctorAddr].specialization;
+        index++;
+      }
+      if (index >= count) break;
+    }
+    
+    return (addresses, names, specializations);
   }
-
-  function getPatientExists(address _patientId) public view senderIsDoctor returns (bool) {
-    return patients[_patientId].id == _patientId;
-  }
-} 
+}

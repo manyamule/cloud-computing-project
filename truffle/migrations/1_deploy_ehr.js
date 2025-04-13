@@ -1,5 +1,5 @@
-const EHR = artifacts.require('EHR')
+const EHR = artifacts.require("EHR");
 
-module.exports = function (deployer) {
-  deployer.deploy(EHR)
-}
+module.exports = function(deployer) {
+  deployer.deploy(EHR);
+};
